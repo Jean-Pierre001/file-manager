@@ -76,6 +76,13 @@ include 'includes/modals/indexmodal.php';
 <script>
 let currentFolder = '';
 
+function normalizePath(path) {
+  path = path.replace(/\/+/g, '/');   // elimina barras repetidas
+  path = path.replace(/^\/+/, '');    // elimina slash al inicio
+  path = path.replace(/\/+$/, '');    // elimina slash al final
+  return path;
+}
+
 function loadFolder(folder) {
   fetch('list_files.php?folder=' + encodeURIComponent(folder))
     .then(res => res.json())
@@ -140,18 +147,23 @@ function loadFolder(folder) {
       // Click en carpetas para navegar
       document.querySelectorAll('.folder-item').forEach(el => {
         el.addEventListener('click', () => {
-          const newFolder = (currentFolder ? currentFolder + '/' : '') + el.dataset.folder;
+          const rawPath = (currentFolder ? currentFolder + '/' : '') + el.dataset.folder;
+          const newFolder = normalizePath(rawPath);
           loadFolder(newFolder);
         });
       });
+
 
       // Click en breadcrumb para navegar
       breadcrumbContainer.querySelectorAll('a').forEach(el => {
         el.addEventListener('click', e => {
           e.preventDefault();
-          loadFolder(el.dataset.folder);
+          const rawPath = el.dataset.folder;
+          const newFolder = normalizePath(rawPath);
+          loadFolder(newFolder);
         });
       });
+
     })
     .catch(() => toastr.error('Error al cargar contenido'));
 }

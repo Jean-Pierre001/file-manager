@@ -17,7 +17,20 @@ if (strpos($targetFolder, '..') !== false) {
     exit();
 }
 
-$fullTargetDir = $uploadBaseDir . ($targetFolder ? $targetFolder . '/' : '');
+$fullTargetDir = rtrim($uploadBaseDir, '/') . '/' . ltrim($targetFolder, '/');
+if (substr($fullTargetDir, -1) !== '/') {
+    $fullTargetDir .= '/';
+}
+
+// Validar con realpath que esté dentro de uploads/
+$baseDirReal = realpath($uploadBaseDir);
+$targetDirReal = realpath(rtrim($fullTargetDir, '/'));
+
+if ($targetDirReal === false || strpos($targetDirReal, $baseDirReal) !== 0) {
+    echo json_encode(['error' => 'Ruta de carpeta no válida.']);
+    exit();
+}
+
 
 // Crear carpeta destino si no existe
 if (!is_dir($fullTargetDir)) {
@@ -49,17 +62,20 @@ $errorFiles = [];
 $fileCount = is_array($files['name']) ? count($files['name']) : 1;
 
 for ($i = 0; $i < $fileCount; $i++) {
-    $fileName = is_array($files['name']) ? $files['name'][$i] : $files['name'];
+    $originalName = is_array($files['name']) ? $files['name'][$i] : $files['name'];
     $fileTmp = is_array($files['tmp_name']) ? $files['tmp_name'][$i] : $files['tmp_name'];
     $fileSize = is_array($files['size']) ? $files['size'][$i] : $files['size'];
     $fileType = is_array($files['type']) ? $files['type'][$i] : $files['type'];
 
+    // Limpiar nombre del archivo
+    $cleanName = str_replace(' ', '_', $originalName); // Reemplazar espacios
+    $cleanName = preg_replace('/[^A-Za-z0-9_\-\.]/', '', $cleanName); // Quitar caracteres no seguros
+    $safeName = basename($cleanName);
+
     if (!in_array($fileType, $allowedMimeTypes)) {
-        $errorFiles[] = $fileName . ' (tipo no permitido)';
+        $errorFiles[] = $originalName . ' (tipo no permitido)';
         continue;
     }
-
-    $safeName = basename($fileName);
 
     // Evitar sobreescritura
     $targetPath = $fullTargetDir . $safeName;
@@ -72,7 +88,6 @@ for ($i = 0; $i < $fileCount; $i++) {
     }
 
     if (move_uploaded_file($fileTmp, $targetPath)) {
-        // Guardar en BD con filepath relativo a uploads/
         $dbFilePath = ($targetFolder ? $targetFolder . '/' : '') . $safeName;
 
         $stmt = $pdo->prepare("INSERT INTO files (user_id, filename, filepath, filesize, filetype) VALUES (?, ?, ?, ?, ?)");
@@ -80,7 +95,7 @@ for ($i = 0; $i < $fileCount; $i++) {
 
         $successFiles[] = $safeName;
     } else {
-        $errorFiles[] = $fileName . ' (error al subir)';
+        $errorFiles[] = $originalName . ' (error al subir)';
     }
 }
 

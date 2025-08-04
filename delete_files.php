@@ -1,5 +1,7 @@
 <?php
 include 'includes/session.php';
+include 'includes/conn.php';
+
 header('Content-Type: application/json');
 
 $data = json_decode(file_get_contents('php://input'), true);
@@ -9,20 +11,15 @@ if (!$data || !isset($data['paths']) || !is_array($data['paths'])) {
 }
 
 $baseDir = realpath(__DIR__ . '/uploads/');
-
 $errors = [];
 
 foreach ($data['paths'] as $path) {
-    if (!$path) continue;
-
-    // Rechazar rutas con '..'
-    if (strpos($path, '..') !== false) {
+    if (!$path || strpos($path, '..') !== false) {
         $errors[] = "Ruta inválida: $path";
         continue;
     }
 
     $fullPath = realpath(__DIR__ . '/' . $path);
-    // Validar que la ruta esté dentro de baseDir
     if (!$fullPath || strpos($fullPath, $baseDir) !== 0) {
         $errors[] = "Archivo no válido o fuera de directorio permitido: $path";
         continue;
@@ -33,7 +30,11 @@ foreach ($data['paths'] as $path) {
         continue;
     }
 
-    if (!unlink($fullPath)) {
+    if (is_file($fullPath) && unlink($fullPath)) {
+        // Eliminar de la DB
+        $stmt = $pdo->prepare("DELETE FROM files WHERE filepath = ?");
+        $stmt->execute([$path]);
+    } else {
         $errors[] = "No se pudo eliminar archivo: $path";
     }
 }

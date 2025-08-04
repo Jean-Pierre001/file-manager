@@ -11,15 +11,10 @@ $baseDir = __DIR__ . '/uploads/';
 $folder = $_GET['folder'] ?? '';
 $folder = trim($folder, "/");
 
-// Seguridad básica: evitar directorios padres
-if (strpos($folder, '..') !== false) {
-    $folder = '';
-}
+$baseDirReal = realpath($baseDir);
+$fullPath = realpath(rtrim($baseDir, '/') . '/' . $folder);
 
-$fullPath = realpath($baseDir . $folder);
-
-if (!$fullPath || strpos($fullPath, realpath($baseDir)) !== 0) {
-    // Si la ruta no es válida o fuera del baseDir
+if (!$fullPath || strpos($fullPath, $baseDirReal) !== 0) {
     echo json_encode(['error' => 'Ruta inválida']);
     exit;
 }

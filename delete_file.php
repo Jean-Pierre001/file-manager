@@ -1,8 +1,10 @@
 <?php
+include 'includes/session.php';
+include 'includes/conn.php';
+
 header('Content-Type: application/json');
 
 $baseDir = realpath(__DIR__ . '/uploads/');
-
 $path = $_POST['path'] ?? '';
 
 if (!$path) {
@@ -21,13 +23,12 @@ if (!$fullPath || strpos($fullPath, $baseDir) !== 0) {
     exit;
 }
 
-if (is_dir($fullPath)) {
-    // Si quieres eliminar carpetas, hazlo aquí, por ahora no permitimos
-    echo json_encode(['success' => false, 'error' => 'No se permite eliminar carpetas']);
-    exit;
-}
+// Eliminar archivo físico
+if (is_file($fullPath) && unlink($fullPath)) {
+    // Eliminar registro de la DB
+    $stmt = $pdo->prepare("DELETE FROM files WHERE filepath = ?");
+    $stmt->execute([$path]);
 
-if (unlink($fullPath)) {
     echo json_encode(['success' => true]);
 } else {
     echo json_encode(['success' => false, 'error' => 'Error al eliminar archivo']);
