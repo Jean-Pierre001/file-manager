@@ -58,9 +58,9 @@ include 'includes/modals/indexmodal.php';
     <h5>Archivos
       <button id="delete-selected" class="btn btn-danger btn-sm ms-3" disabled>Eliminar seleccionados</button>
       <button id="download-selected" class="btn btn-primary btn-sm ms-1" disabled>Descargar seleccionados</button>
-      <button id="copy-selected" class="btn btn-outline-primary btn-sm ms-1" disabled>Copiar</button>
-      <button id="cut-selected" class="btn btn-outline-warning btn-sm ms-1" disabled>Cortar</button>
-      <button id="paste-files" class="btn btn-outline-success btn-sm ms-1" disabled>Pegar</button>
+      <button id="copy-selected" class="btn btn-primary btn-sm ms-1" disabled>Copiar</button>
+      <button id="cut-selected" class="btn btn-warning btn-sm ms-1" disabled>Cortar</button>
+      <button id="paste-files" class="btn btn-success btn-sm ms-1" disabled>Pegar</button>
     </h5>
     <div id="file-list"></div>
   </section>
@@ -133,7 +133,11 @@ document.getElementById('paste-files').addEventListener('click', () => {
   .then(res => res.json())
   .then(data => {
     if (data.success) {
+      if (data.warning) {
+      toastr.warning(data.warning);
+    } else {
       toastr.success(data.message || 'Operación completada');
+    }
       clipboardFiles = [];
       clipboardAction = null;
       updateClipboardButtons();
@@ -325,7 +329,7 @@ renameForm.addEventListener('submit', e => {
   fetch('rename_file.php', {
     method: 'POST',
     headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: new URLSearchParams({ path, new_name: newName })
+    body: new URLSearchParams({ oldPath: path, newNameInput: newName })
   })
   .then(res => res.json())
   .then(data => {

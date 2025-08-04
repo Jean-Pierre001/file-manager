@@ -1,38 +1,69 @@
 <?php
+include 'includes/session.php';
+include 'includes/conn.php';
+
 header('Content-Type: application/json');
 
 $baseDir = realpath(__DIR__ . '/uploads/');
+$oldPath = $_POST['oldPath'] ?? '';
+$newName = $_POST['newNameInput'] ?? '';
 
-$path = $_POST['path'] ?? '';
-$newName = $_POST['new_name'] ?? '';
-
-if (!$path || !$newName) {
+if (!$oldPath || !$newName) {
     echo json_encode(['success' => false, 'error' => 'Faltan parámetros']);
     exit;
 }
 
-// Seguridad: Evitar .. y normalizar rutas
-if (strpos($path, '..') !== false || strpos($newName, '..') !== false) {
+if (strpos($oldPath, '..') !== false || strpos($newName, '..') !== false) {
     echo json_encode(['success' => false, 'error' => 'Ruta inválida']);
     exit;
 }
 
-$oldFullPath = realpath(__DIR__ . '/' . $path);
-if (!$oldFullPath || strpos($oldFullPath, $baseDir) !== 0) {
-    echo json_encode(['success' => false, 'error' => 'Archivo no válido']);
+$fullOldPath = realpath(__DIR__ . '/' . $oldPath);
+if (!$fullOldPath || strpos($fullOldPath, $baseDir) !== 0) {
+    echo json_encode(['success' => false, 'error' => 'Ruta inválida']);
     exit;
 }
 
-$newFullPath = dirname($oldFullPath) . DIRECTORY_SEPARATOR . basename($newName);
+// Obtener ruta relativa base para actualizar en la DB
+$relativeDir = dirname($oldPath);
+$relativeNewPath = ($relativeDir !== '.' ? $relativeDir . '/' : '') . $newName;
 
-// Evitar sobreescritura
-if (file_exists($newFullPath)) {
+// Obtener ruta absoluta destino
+$fullNewPath = dirname($fullOldPath) . '/' . $newName;
+
+// Verificamos que no exista ya un archivo con ese nombre
+if (file_exists($fullNewPath)) {
     echo json_encode(['success' => false, 'error' => 'Ya existe un archivo con ese nombre']);
     exit;
 }
 
-if (rename($oldFullPath, $newFullPath)) {
+// Intentar renombrar físicamente
+if (!rename($fullOldPath, $fullNewPath)) {
+    echo json_encode(['success' => false, 'error' => 'No se pudo renombrar el archivo']);
+    exit;
+}
+
+// Actualizar base de datos
+try {
+    // Si es carpeta, actualizamos subrutas también
+    if (is_dir($fullNewPath)) {
+        $stmt = $pdo->prepare("SELECT filepath FROM files WHERE filepath LIKE ?");
+        $stmt->execute([$oldPath . '/%']);
+        $rows = $stmt->fetchAll();
+
+        foreach ($rows as $row) {
+            $oldFile = $row['filepath'];
+            $newFile = preg_replace('#^' . preg_quote($oldPath, '#') . '#', $relativeNewPath, $oldFile);
+            $update = $pdo->prepare("UPDATE files SET filepath = ? WHERE filepath = ?");
+            $update->execute([$newFile, $oldFile]);
+        }
+    }
+
+    // Actualiza la entrada principal
+    $stmt = $pdo->prepare("UPDATE files SET filepath = ?, filename = ? WHERE filepath = ?");
+    $stmt->execute([$relativeNewPath, $newName, $oldPath]);
+
     echo json_encode(['success' => true]);
-} else {
-    echo json_encode(['success' => false, 'error' => 'Error renombrando archivo']);
+} catch (PDOException $e) {
+    echo json_encode(['success' => false, 'error' => 'Error DB: ' . $e->getMessage()]);
 }
