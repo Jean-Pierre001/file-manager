@@ -58,6 +58,9 @@ include 'includes/modals/indexmodal.php';
     <h5>Archivos
       <button id="delete-selected" class="btn btn-danger btn-sm ms-3" disabled>Eliminar seleccionados</button>
       <button id="download-selected" class="btn btn-primary btn-sm ms-1" disabled>Descargar seleccionados</button>
+      <button id="copy-selected" class="btn btn-outline-primary btn-sm ms-1" disabled>Copiar</button>
+      <button id="cut-selected" class="btn btn-outline-warning btn-sm ms-1" disabled>Cortar</button>
+      <button id="paste-files" class="btn btn-outline-success btn-sm ms-1" disabled>Pegar</button>
     </h5>
     <div id="file-list"></div>
   </section>
@@ -82,6 +85,66 @@ function normalizePath(path) {
   path = path.replace(/\/+$/, '');    // elimina slash al final
   return path;
 }
+
+// Estado global para copiar/cortar
+let clipboardFiles = [];
+let clipboardAction = null; // 'copy' o 'cut'
+
+function updateClipboardButtons() {
+  document.getElementById('paste-files').disabled = clipboardFiles.length === 0;
+}
+
+// Obtener archivos seleccionados
+function getSelectedFiles() {
+  return Array.from(document.querySelectorAll('.file-checkbox:checked')).map(chk => chk.dataset.path);
+}
+
+// Copiar archivos seleccionados
+document.getElementById('copy-selected').addEventListener('click', () => {
+  clipboardFiles = getSelectedFiles();
+  if (clipboardFiles.length === 0) return;
+  clipboardAction = 'copy';
+  updateClipboardButtons();
+  toastr.info(`Copiado ${clipboardFiles.length} archivo(s) para pegar.`);
+});
+
+// Cortar archivos seleccionados
+document.getElementById('cut-selected').addEventListener('click', () => {
+  clipboardFiles = getSelectedFiles();
+  if (clipboardFiles.length === 0) return;
+  clipboardAction = 'cut';
+  updateClipboardButtons();
+  toastr.info(`Cortado ${clipboardFiles.length} archivo(s) para mover.`);
+});
+
+// Pegar archivos en carpeta actual
+document.getElementById('paste-files').addEventListener('click', () => {
+  if (clipboardFiles.length === 0 || !clipboardAction) return;
+
+  fetch('paste_files.php', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      source: clipboardFiles,
+      target: currentFolder,
+      action: clipboardAction
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      toastr.success(data.message || 'Operación completada');
+      clipboardFiles = [];
+      clipboardAction = null;
+      updateClipboardButtons();
+      loadFolder(currentFolder);
+    } else {
+      toastr.error(data.error || 'Error al pegar archivos');
+    }
+  })
+  .catch(() => toastr.error('Error en la petición'));
+});
+
 
 function loadFolder(folder) {
   fetch('list_files.php?folder=' + encodeURIComponent(folder))
@@ -331,6 +394,8 @@ function updateButtonsState() {
   const checkedCount = document.querySelectorAll('.file-checkbox:checked').length;
   document.getElementById('delete-selected').disabled = checkedCount === 0;
   document.getElementById('download-selected').disabled = checkedCount === 0;
+  document.getElementById('copy-selected').disabled = checkedCount === 0;
+  document.getElementById('cut-selected').disabled = checkedCount === 0;
 }
 
 // Seleccionar todos
