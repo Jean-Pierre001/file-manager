@@ -25,9 +25,6 @@ if (!$fullPath || strpos($fullPath, $baseDir) !== 0) {
 
 // Eliminar archivo físico
 if (is_file($fullPath) && unlink($fullPath)) {
-    // Eliminar registro de la DB
-    $stmt = $pdo->prepare("DELETE FROM files WHERE filepath = ?");
-    $stmt->execute([$path]);
 
     echo json_encode(['success' => true]);
 } else {

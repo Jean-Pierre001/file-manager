@@ -31,9 +31,6 @@ foreach ($data['paths'] as $path) {
     }
 
     if (is_file($fullPath) && unlink($fullPath)) {
-        // Eliminar de la DB
-        $stmt = $pdo->prepare("DELETE FROM files WHERE filepath = ?");
-        $stmt->execute([$path]);
     } else {
         $errors[] = "No se pudo eliminar archivo: $path";
     }

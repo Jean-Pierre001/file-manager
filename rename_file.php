@@ -42,28 +42,4 @@ if (!rename($fullOldPath, $fullNewPath)) {
     echo json_encode(['success' => false, 'error' => 'No se pudo renombrar el archivo']);
     exit;
 }
-
-// Actualizar base de datos
-try {
-    // Si es carpeta, actualizamos subrutas también
-    if (is_dir($fullNewPath)) {
-        $stmt = $pdo->prepare("SELECT filepath FROM files WHERE filepath LIKE ?");
-        $stmt->execute([$oldPath . '/%']);
-        $rows = $stmt->fetchAll();
-
-        foreach ($rows as $row) {
-            $oldFile = $row['filepath'];
-            $newFile = preg_replace('#^' . preg_quote($oldPath, '#') . '#', $relativeNewPath, $oldFile);
-            $update = $pdo->prepare("UPDATE files SET filepath = ? WHERE filepath = ?");
-            $update->execute([$newFile, $oldFile]);
-        }
-    }
-
-    // Actualiza la entrada principal
-    $stmt = $pdo->prepare("UPDATE files SET filepath = ?, filename = ? WHERE filepath = ?");
-    $stmt->execute([$relativeNewPath, $newName, $oldPath]);
-
     echo json_encode(['success' => true]);
-} catch (PDOException $e) {
-    echo json_encode(['success' => false, 'error' => 'Error DB: ' . $e->getMessage()]);
-}

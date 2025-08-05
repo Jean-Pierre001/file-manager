@@ -1,17 +1,12 @@
 <?php
 include 'includes/session.php';
-include 'includes/conn.php';
 
 header('Content-Type: application/json');
 
-$user_id = $_SESSION['user_id'];
-
-// Obtener carpeta destino relativa desde POST (ejemplo: "carpeta1/subcarpeta2") o raíz si no está
 $targetFolder = trim($_POST['targetFolder'] ?? '');
-
 $uploadBaseDir = __DIR__ . '/uploads/';
 
-// Validar que la carpeta destino no tenga traversal (../)
+// Validar ruta
 if (strpos($targetFolder, '..') !== false) {
     echo json_encode(['error' => 'Ruta de carpeta no válida.']);
     exit();
@@ -22,7 +17,6 @@ if (substr($fullTargetDir, -1) !== '/') {
     $fullTargetDir .= '/';
 }
 
-// Validar con realpath que esté dentro de uploads/
 $baseDirReal = realpath($uploadBaseDir);
 $targetDirReal = realpath(rtrim($fullTargetDir, '/'));
 
@@ -31,8 +25,6 @@ if ($targetDirReal === false || strpos($targetDirReal, $baseDirReal) !== 0) {
     exit();
 }
 
-
-// Crear carpeta destino si no existe
 if (!is_dir($fullTargetDir)) {
     if (!mkdir($fullTargetDir, 0755, true)) {
         echo json_encode(['error' => 'No se pudo crear la carpeta destino.']);
@@ -47,13 +39,10 @@ if (empty($_FILES['file'])) {
 
 $files = $_FILES['file'];
 
-// Soporte para múltiples archivos enviados (Dropzone puede enviar varios)
-
 $allowedMimeTypes = [
     'image/jpeg', 'image/png', 'image/gif',
     'application/pdf', 'text/plain',
     'video/mp4', 'audio/mpeg',
-    // agregar más si querés
 ];
 
 $successFiles = [];
@@ -63,8 +52,8 @@ $fileCount = is_array($files['name']) ? count($files['name']) : 1;
 
 for ($i = 0; $i < $fileCount; $i++) {
     $originalName = is_array($files['name']) ? $files['name'][$i] : $files['name'];
-    $fileName = str_replace(' ', '_', $originalName); // reemplaza espacios
-    $fileName = preg_replace('/[^A-Za-z0-9_\-\.]/', '', $fileName); // limpia caracteres raros
+    $fileName = str_replace(' ', '_', $originalName);
+    $fileName = preg_replace('/[^A-Za-z0-9_\-\.]/', '', $fileName);
     $fileTmp = is_array($files['tmp_name']) ? $files['tmp_name'][$i] : $files['tmp_name'];
     $fileSize = is_array($files['size']) ? $files['size'][$i] : $files['size'];
     $fileType = is_array($files['type']) ? $files['type'][$i] : $files['type'];
@@ -75,9 +64,8 @@ for ($i = 0; $i < $fileCount; $i++) {
     }
 
     $safeName = basename($fileName);
-
-    // Evitar sobreescritura
     $targetPath = $fullTargetDir . $safeName;
+
     $counter = 1;
     $pathInfo = pathinfo($safeName);
     while (file_exists($targetPath)) {
@@ -87,12 +75,6 @@ for ($i = 0; $i < $fileCount; $i++) {
     }
 
     if (move_uploaded_file($fileTmp, $targetPath)) {
-        // Guardar en BD con filepath relativo a uploads/
-        $dbFilePath = ($targetFolder ? $targetFolder . '/' : '') . $safeName;
-
-        $stmt = $pdo->prepare("INSERT INTO files (user_id, filename, filepath, filesize, filetype) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$user_id, $safeName, 'uploads/' . $dbFilePath, $fileSize, $fileType]);
-
         $successFiles[] = $safeName;
     } else {
         $errorFiles[] = $fileName . ' (error al subir)';

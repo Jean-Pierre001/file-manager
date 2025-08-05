@@ -344,8 +344,6 @@ renameForm.addEventListener('submit', e => {
   .catch(() => toastr.error('Error al renombrar archivo'));
 });
 
-
-
 function previewFile(path, type) {
   const win = window.open('', '_blank');
   if (!win) return toastr.warning('Desbloquea los pop-ups');
@@ -515,8 +513,6 @@ document.addEventListener('dblclick', e => {
     }
   }
 });
-
-
 
 </script>
 

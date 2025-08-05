@@ -64,44 +64,12 @@ try {
                 echo json_encode(['success' => false, 'error' => "Error copiando $filename"]);
                 exit;
             }
-
-            // Obtener datos del archivo original para la BD
-            $oldDbPath = 'uploads/' . str_replace('\\', '/', $sourcePath);
-
-            $stmt = $pdo->prepare("SELECT filesize, filetype FROM files WHERE filepath = ?");
-            $stmt->execute([$oldDbPath]);
-            $fileData = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($fileData) {
-                // Insertar nuevo registro para el archivo copiado
-                $newRelativePath = substr($destPath, strlen($baseDir) + 1);
-                $newDbPath = 'uploads/' . str_replace('\\', '/', $newRelativePath);
-
-                $stmtInsert = $pdo->prepare("INSERT INTO files (user_id, filename, filepath, filesize, filetype) VALUES (?, ?, ?, ?, ?)");
-                $stmtInsert->execute([
-                    $_SESSION['user_id'],
-                    $filename,
-                    $newDbPath,
-                    $fileData['filesize'],
-                    $fileData['filetype']
-                ]);
-            }
-        } elseif ($action === 'cut') {
+            
+            } elseif ($action === 'cut') {
             if (!rename($sourceFullPath, $destPath)) {
                 echo json_encode(['success' => false, 'error' => "Error moviendo $filename"]);
                 exit;
             }
-
-            // Actualizar DB: cambiar filepath del archivo a la nueva ruta
-            $oldDbPath = 'uploads/' . str_replace('\\', '/', $sourcePath);
-            $newRelativePath = substr($destPath, strlen($baseDir) + 1); // +1 para quitar la barra '/'
-            $newDbPath = 'uploads/' . str_replace('\\', '/', $newRelativePath);
-
-            $stmt = $pdo->prepare("UPDATE files SET filepath = ? WHERE filepath = ?");
-            $stmt->execute([$newDbPath, $oldDbPath]);
-        } else {
-            echo json_encode(['success' => false, 'error' => 'Acción inválida']);
-            exit;
         }
     }
 

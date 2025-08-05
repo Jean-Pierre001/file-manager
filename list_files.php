@@ -5,16 +5,17 @@ header("Pragma: no-cache");
 header("Expires: 0");
 header('Content-Type: application/json');
 
-// Define el directorio base (ajusta según tu estructura)
+// Define el directorio base
 $baseDir = __DIR__ . '/uploads/';
 
 $folder = $_GET['folder'] ?? '';
 $folder = trim($folder, "/");
 
 $baseDirReal = realpath($baseDir);
-$fullPath = realpath(rtrim($baseDir, '/') . '/' . $folder);
+$fullPath = realpath($baseDir . $folder);
 
-if (!$fullPath || strpos($fullPath, $baseDirReal) !== 0) {
+// Validación: asegurar que la ruta esté dentro del directorio base
+if (!$fullPath || strpos($fullPath, $baseDirReal) !== 0 || !is_dir($fullPath)) {
     echo json_encode(['error' => 'Ruta inválida']);
     exit;
 }
@@ -35,38 +36,38 @@ function buildBreadcrumbs($folder) {
 $folders = [];
 $files = [];
 
-$dh = opendir($fullPath);
-if ($dh) {
+// Leer contenido del directorio para archivos
+if ($dh = opendir($fullPath)) {
     while (($file = readdir($dh)) !== false) {
         if ($file === '.' || $file === '..') continue;
+
         $filePath = $fullPath . DIRECTORY_SEPARATOR . $file;
+        $relativePath = 'uploads/' . ($folder ? $folder . '/' : '') . $file;
+
         if (is_dir($filePath)) {
             $folders[] = $file;
-        } else {
-            $filesize = filesize($filePath);
-            $uploaded_at = date("Y-m-d H:i:s", filemtime($filePath));
-            $filetype = mime_content_type($filePath);
+        } elseif (is_file($filePath)) {
             $files[] = [
                 'filename' => $file,
-                'filesize' => $filesize,
-                'uploaded_at' => $uploaded_at,
-                'path' => 'uploads/' . ($folder ? $folder . '/' : '') . $file,
-                'type' => $filetype
+                'filesize' => filesize($filePath),
+                'uploaded_at' => date("Y-m-d H:i:s", filemtime($filePath)),
+                'path' => $relativePath,
+                'type' => mime_content_type($filePath)
             ];
         }
     }
     closedir($dh);
 }
 
-// Ordenar carpetas y archivos alfabéticamente
+// Ordenar alfabéticamente
 sort($folders);
-usort($files, function($a, $b) {
-    return strcasecmp($a['filename'], $b['filename']);
-});
+usort($files, fn($a, $b) => strcasecmp($a['filename'], $b['filename']));
 
+// Devolver respuesta JSON
 echo json_encode([
     'current_folder' => $folder,
     'breadcrumbs' => buildBreadcrumbs($folder),
-    'folders' => $folders,
-    'files' => $files
+    'folders' => $folders,  // 👈 ESTO ENVÍA LAS CARPETAS
+    'files' => $files       // Esto son los archivos
 ]);
+
