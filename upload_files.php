@@ -1,29 +1,30 @@
 <?php
 include 'includes/session.php';
+include 'includes/conn.php'; // PDO connection
 
 header('Content-Type: application/json');
 
-$targetFolder = trim($_POST['targetFolder'] ?? '');
+$targetFolderId = $_POST['targetFolderId'] ?? null;
+
+if (!$targetFolderId || !is_numeric($targetFolderId)) {
+    echo json_encode(['error' => 'ID de carpeta no válido.']);
+    exit();
+}
+
+// Obtener path físico en base a carpeta en BD
+$stmt = $pdo->prepare("SELECT path FROM folders WHERE id = ?");
+$stmt->execute([$targetFolderId]);
+$folderPath = $stmt->fetchColumn();
+
+if (!$folderPath) {
+    echo json_encode(['error' => 'Carpeta destino no encontrada.']);
+    exit();
+}
+
 $uploadBaseDir = __DIR__ . '/uploads/';
-
-// Validar ruta
-if (strpos($targetFolder, '..') !== false) {
-    echo json_encode(['error' => 'Ruta de carpeta no válida.']);
-    exit();
-}
-
-$fullTargetDir = rtrim($uploadBaseDir, '/') . '/' . ltrim($targetFolder, '/');
-if (substr($fullTargetDir, -1) !== '/') {
-    $fullTargetDir .= '/';
-}
-
 $baseDirReal = realpath($uploadBaseDir);
-$targetDirReal = realpath(rtrim($fullTargetDir, '/'));
 
-if ($targetDirReal === false || strpos($targetDirReal, $baseDirReal) !== 0) {
-    echo json_encode(['error' => 'Ruta de carpeta no válida.']);
-    exit();
-}
+$fullTargetDir = $baseDirReal . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $folderPath);
 
 if (!is_dir($fullTargetDir)) {
     if (!mkdir($fullTargetDir, 0755, true)) {
@@ -64,13 +65,13 @@ for ($i = 0; $i < $fileCount; $i++) {
     }
 
     $safeName = basename($fileName);
-    $targetPath = $fullTargetDir . $safeName;
+    $targetPath = $fullTargetDir . DIRECTORY_SEPARATOR . $safeName;
 
     $counter = 1;
     $pathInfo = pathinfo($safeName);
     while (file_exists($targetPath)) {
         $safeName = $pathInfo['filename'] . "_$counter." . $pathInfo['extension'];
-        $targetPath = $fullTargetDir . $safeName;
+        $targetPath = $fullTargetDir . DIRECTORY_SEPARATOR . $safeName;
         $counter++;
     }
 

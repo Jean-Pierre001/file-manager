@@ -1,24 +1,18 @@
 <?php
+include 'includes/session.php';
+include 'includes/conn.php'; // conexión PDO
+
 // Evitar cache HTTP
 header("Cache-Control: no-cache, no-store, must-revalidate");
 header("Pragma: no-cache");
 header("Expires: 0");
 header('Content-Type: application/json');
 
-// Define el directorio base
+// Define el directorio base físico para archivos
 $baseDir = __DIR__ . '/uploads/';
 
 $folder = $_GET['folder'] ?? '';
 $folder = trim($folder, "/");
-
-$baseDirReal = realpath($baseDir);
-$fullPath = realpath($baseDir . $folder);
-
-// Validación: asegurar que la ruta esté dentro del directorio base
-if (!$fullPath || strpos($fullPath, $baseDirReal) !== 0 || !is_dir($fullPath)) {
-    echo json_encode(['error' => 'Ruta inválida']);
-    exit;
-}
 
 // Función para crear breadcrumbs
 function buildBreadcrumbs($folder) {
@@ -33,41 +27,60 @@ function buildBreadcrumbs($folder) {
     return $crumbs;
 }
 
-$folders = [];
-$files = [];
-
-// Leer contenido del directorio para archivos
-if ($dh = opendir($fullPath)) {
-    while (($file = readdir($dh)) !== false) {
-        if ($file === '.' || $file === '..') continue;
-
-        $filePath = $fullPath . DIRECTORY_SEPARATOR . $file;
-        $relativePath = 'uploads/' . ($folder ? $folder . '/' : '') . $file;
-
-        if (is_dir($filePath)) {
-            $folders[] = $file;
-        } elseif (is_file($filePath)) {
-            $files[] = [
-                'filename' => $file,
-                'filesize' => filesize($filePath),
-                'uploaded_at' => date("Y-m-d H:i:s", filemtime($filePath)),
-                'path' => $relativePath,
-                'type' => mime_content_type($filePath)
-            ];
-        }
+// Obtener carpeta actual desde BD para sacar su id
+if ($folder === '') {
+    $currentFolderId = null; // raíz
+} else {
+    $stmt = $pdo->prepare("SELECT id FROM folders WHERE path = ?");
+    $stmt->execute([$folder]);
+    $currentFolderId = $stmt->fetchColumn();
+    if ($currentFolderId === false) {
+        echo json_encode(['error' => 'Carpeta no encontrada']);
+        exit;
     }
-    closedir($dh);
 }
 
-// Ordenar alfabéticamente
-sort($folders);
-usort($files, fn($a, $b) => strcasecmp($a['filename'], $b['filename']));
+// Listar carpetas hijas desde BD con parent_id = currentFolderId
+$stmt = $pdo->prepare("SELECT id, name, path FROM folders WHERE parent_id " . ($currentFolderId === null ? "IS NULL" : "= ?") . " ORDER BY name ASC");
+if ($currentFolderId === null) {
+    $stmt->execute();
+} else {
+    $stmt->execute([$currentFolderId]);
+}
+$folders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Devolver respuesta JSON
+// Listar archivos desde disco dentro de $baseDir/$folder
+$fullPath = realpath($baseDir . $folder);
+if (!$fullPath || strpos($fullPath, realpath($baseDir)) !== 0 || !is_dir($fullPath)) {
+    // Si la carpeta no existe físicamente, devolver vacíos
+    $files = [];
+} else {
+    $files = [];
+    $dh = opendir($fullPath);
+    if ($dh) {
+        while (($file = readdir($dh)) !== false) {
+            if ($file === '.' || $file === '..') continue;
+            $filePath = $fullPath . DIRECTORY_SEPARATOR . $file;
+            if (is_file($filePath)) {
+                $files[] = [
+                    'filename' => $file,
+                    'filesize' => filesize($filePath),
+                    'uploaded_at' => date("Y-m-d H:i:s", filemtime($filePath)),
+                    'path' => ($folder ? $folder . '/' : '') . $file,
+                    'type' => mime_content_type($filePath)
+                ];
+            }
+        }
+        closedir($dh);
+    }
+    // Ordenar archivos por nombre
+    usort($files, fn($a, $b) => strcasecmp($a['filename'], $b['filename']));
+}
+
+// Devolver JSON con folders (objetos con id, name, path), archivos, breadcrumbs
 echo json_encode([
     'current_folder' => $folder,
     'breadcrumbs' => buildBreadcrumbs($folder),
-    'folders' => $folders,  // 👈 ESTO ENVÍA LAS CARPETAS
-    'files' => $files       // Esto son los archivos
+    'folders' => $folders,
+    'files' => $files
 ]);
-

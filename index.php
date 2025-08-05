@@ -178,24 +178,24 @@ folderList.innerHTML = data.folders.length
       </thead>
       <tbody>` +
       data.folders.map(folder => {
-        const folderPath = (data.current_folder ? data.current_folder + '/' : '') + folder;
         return `
-          <tr class="folder-row" data-folder="${folderPath}">
+          <tr class="folder-row" data-folder-id="${folder.id}">
             <td>
-              <span class="folder-name fw-semibold text-primary" style="cursor:pointer;" onclick="loadFolder('${folderPath}')">
-                ${folder}
+              <span class="folder-name fw-semibold text-primary" style="cursor:pointer;" onclick="loadFolder('${folder.path}')">
+                ${folder.name}
               </span>
             </td>
             <td class="text-end">
               <div class="btn-group" role="group">
-                <a href="rename_folder.php?folder=${encodeURIComponent(folderPath)}" class="btn btn-sm btn-secondary rounded-2">Renombrar</a>
-                <a href="delete_folder.php?folder=${encodeURIComponent(folderPath)}" class="btn btn-sm btn-primary ms-2 rounded-2">Eliminar</a>
+                <a href="rename_folder.php?folder_id=${folder.id}" class="btn btn-sm btn-secondary rounded-2">Renombrar</a>
+                <button onclick="deleteFolder(${folder.id})" class="btn btn-sm btn-danger ms-2 rounded-2">Eliminar</button>
               </div>
             </td>
           </tr>`;
       }).join('') +
       `</tbody></table>`
   : '<p class="text-muted">No hay carpetas.</p>';
+
 
       // Archivos
       const fileList = document.getElementById('file-list');
@@ -259,6 +259,27 @@ folderList.innerHTML = data.folders.length
     })
     .catch(() => toastr.error('Error al cargar contenido'));
 }
+
+function deleteFolder(folderId) {
+  if (!confirm('¿Seguro que quieres eliminar esta carpeta y todo su contenido?')) return;
+
+  fetch('delete_folder.php', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({ folder_id: folderId })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      toastr.success('Carpeta eliminada');
+      loadFolder(currentFolder); // refrescar vista
+    } else {
+      toastr.error(data.error || 'Error al eliminar carpeta');
+    }
+  })
+  .catch(() => toastr.error('Error al eliminar carpeta'));
+}
+
 
 document.addEventListener('DOMContentLoaded', () => loadFolder(currentFolder));
 

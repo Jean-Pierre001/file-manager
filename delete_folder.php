@@ -1,88 +1,71 @@
 <?php
 include 'includes/session.php';
-require_once 'includes/conn.php';
+include 'includes/conn.php'; // PDO connection
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['folder_id'])) {
-        $folder_id = $_POST['folder_id'];
+header('Content-Type: application/json');
 
-        try {
-            // Buscar la carpeta en la base de datos
-            $stmt = $pdo->prepare("SELECT * FROM folders WHERE id = ?");
-            $stmt->execute([$folder_id]);
-            $folder = $stmt->fetch();
+$baseDir = __DIR__ . '/uploads/';
+$folderId = $_POST['folder_id'] ?? null;
 
-            if (!$folder) {
-                $_SESSION['error'] = "Carpeta no encontrada en la base de datos.";
-                header('Location: folders.php');
-                exit;
-            }
-
-            // Preparar datos para la papelera
-            $trashFolderPath = 'trash/' . $folder['folder_system_name'];
-            $trashFolderSystemName = $folder['folder_system_name'];
-
-            // Insertar en la tabla trash (sin location)
-            $insert = $pdo->prepare("INSERT INTO trash 
-                (name, folder_path, deleted_on, original_id, folder_system_name) 
-                VALUES (?, ?, CURDATE(), ?, ?)");
-            $insert->execute([
-                $folder['name'],
-                $trashFolderPath,
-                $folder['id'],
-                $trashFolderSystemName
-            ]);
-
-            // Eliminar la carpeta de la tabla original
-            $delete = $pdo->prepare("DELETE FROM folders WHERE id = ?");
-            $delete->execute([$folder_id]);
-
-            // Mover carpeta físicamente
-            $baseFolders = __DIR__ . '/folders/';
-            $baseTrash = __DIR__ . '/trash/';
-
-            $oldPath = $baseFolders . $folder['folder_system_name'];
-            $newPath = $baseTrash . $folder['folder_system_name'];
-
-            if (!is_dir($baseTrash)) {
-                mkdir($baseTrash, 0755, true);
-            }
-
-            // Función para mover carpeta completa recursivamente
-            function moveFolder($src, $dst) {
-                mkdir($dst, 0755, true);
-                foreach (scandir($src) as $file) {
-                    if ($file === '.' || $file === '..') continue;
-
-                    $srcFile = $src . DIRECTORY_SEPARATOR . $file;
-                    $dstFile = $dst . DIRECTORY_SEPARATOR . $file;
-
-                    if (is_dir($srcFile)) {
-                        moveFolder($srcFile, $dstFile);
-                    } else {
-                        rename($srcFile, $dstFile);
-                    }
-                }
-                rmdir($src);
-            }
-
-            moveFolder($oldPath, $newPath);
-
-            $_SESSION['success'] = "Carpeta movida correctamente a la papelera.";
-            header('Location: folders.php');
-            exit;
-
-        } catch (PDOException $e) {
-            $_SESSION['error'] = "Error al mover la carpeta: " . $e->getMessage();
-            header('Location: folders.php');
-            exit;
-        }
-    } else {
-        $_SESSION['error'] = "ID de carpeta no especificado.";
-        header('Location: folders.php');
-        exit;
-    }
-} else {
-    header('Location: folders.php');
+if (!$folderId || !is_numeric($folderId)) {
+    echo json_encode(['success' => false, 'error' => 'ID de carpeta inválido']);
     exit;
+}
+
+// Obtener path de la carpeta para borrar en disco
+$stmt = $pdo->prepare("SELECT path FROM folders WHERE id = ?");
+$stmt->execute([$folderId]);
+$relativePath = $stmt->fetchColumn();
+
+if (!$relativePath) {
+    echo json_encode(['success' => false, 'error' => 'Carpeta no encontrada']);
+    exit;
+}
+
+// Construir ruta absoluta
+$targetPath = realpath($baseDir) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+
+// Función recursiva para borrar carpeta y su contenido en disco
+function rrmdir($dir) {
+    if (!is_dir($dir)) return;
+    $objects = scandir($dir);
+    foreach ($objects as $object) {
+        if ($object === '.' || $object === '..') continue;
+        $path = $dir . DIRECTORY_SEPARATOR . $object;
+        if (is_dir($path)) {
+            rrmdir($path);
+        } else {
+            unlink($path);
+        }
+    }
+    rmdir($dir);
+}
+
+// Función para eliminar carpeta y sus subcarpetas en BD
+function deleteFolderDB($pdo, $folderId) {
+    // Buscar carpetas hijas (subfolders)
+    $stmt = $pdo->prepare("SELECT id FROM folders WHERE parent_id = ?");
+    $stmt->execute([$folderId]);
+    $subfolderIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    // Eliminar recursivamente subcarpetas
+    foreach ($subfolderIds as $subId) {
+        deleteFolderDB($pdo, $subId);
+    }
+
+    // Eliminar la carpeta actual
+    $stmt = $pdo->prepare("DELETE FROM folders WHERE id = ?");
+    $stmt->execute([$folderId]);
+}
+
+try {
+    // Borrar carpeta en disco recursivamente
+    rrmdir($targetPath);
+
+    // Borrar carpeta en BD (y recursivamente sus hijas)
+    deleteFolderDB($pdo, $folderId);
+
+    echo json_encode(['success' => true]);
+} catch (Exception $e) {
+    echo json_encode(['success' => false, 'error' => 'Error al eliminar carpeta: ' . $e->getMessage()]);
 }
