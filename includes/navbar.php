@@ -1,5 +1,5 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-  <a class="navbar-brand ms-3" href="index.php">📁 File Manager</a>
+  <a class="navbar-brand ms-3" href="index.php">📁 Gestor de Carpetas</a>
   <div class="collapse navbar-collapse justify-content-end me-3">
     <ul class="navbar-nav">
       <li class="nav-item">

@@ -188,16 +188,14 @@ folderList.innerHTML = data.folders.length
             </td>
             <td class="text-end">
               <div class="btn-group" role="group">
-                <a href="delete_folder.php?folder=${encodeURIComponent(folderPath)}" class="btn btn-sm btn-primary rounded-2">Eliminar</a>
-                <a href="rename_folder.php?folder=${encodeURIComponent(folderPath)}" class="btn btn-sm btn-secondary ms-2 rounded-2">Renombrar</a>
+                <a href="rename_folder.php?folder=${encodeURIComponent(folderPath)}" class="btn btn-sm btn-secondary rounded-2">Renombrar</a>
+                <a href="delete_folder.php?folder=${encodeURIComponent(folderPath)}" class="btn btn-sm btn-primary ms-2 rounded-2">Eliminar</a>
               </div>
             </td>
           </tr>`;
       }).join('') +
       `</tbody></table>`
   : '<p class="text-muted">No hay carpetas.</p>';
-
-
 
       // Archivos
       const fileList = document.getElementById('file-list');
