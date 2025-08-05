@@ -151,6 +151,9 @@ document.getElementById('paste-files').addEventListener('click', () => {
 
 
 function loadFolder(folder) {
+  folder = decodeURIComponent(folder);
+  folder = normalizePath(folder);
+
   fetch('list_files.php?folder=' + encodeURIComponent(folder))
     .then(res => res.json())
     .then(data => {
@@ -159,61 +162,60 @@ function loadFolder(folder) {
       // Breadcrumbs
       const breadcrumbContainer = document.getElementById('breadcrumb-container');
       breadcrumbContainer.innerHTML = data.breadcrumbs.map((crumb, idx) => {
-        if (idx === data.breadcrumbs.length - 1) {
+        const visualPath = crumb.path.replace(/\//g, '\\');  // <-- Aquí reemplazas para mostrar barras invertidas
+        if (idx === data.breadcrumbs.length - 1) {  
           return `<li class="breadcrumb-item active" aria-current="page">${crumb.name}</li>`;
         } else {
-          return `<li class="breadcrumb-item"><a href="#" data-folder="${crumb.path}">${crumb.name}</a></li>`;
+          return `<li class="breadcrumb-item"><a href="#" data-folder="${encodeURIComponent(crumb.path)}">${crumb.name}</a></li>`;
         }
       }).join('');
 
-const folderList = document.getElementById('folder-list');
+      // Carpeta
+      const folderList = document.getElementById('folder-list');
+      folderList.innerHTML = data.folders.length
+        ? `<table class="table table-hover align-middle shadow-sm border rounded">
+            <thead class="table-light">
+              <tr>
+                <th>📁 Carpeta</th>
+                <th class="text-end">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>` +
+            data.folders.map(folder => `
+              <tr class="folder-row" data-folder-id="${folder.id}">
+                <td>
+                  <span class="folder-name fw-semibold text-primary" style="cursor:pointer;" onclick="loadFolder('${encodeURIComponent(folder.path)}')">
+                    ${folder.name}
+                  </span>
+                </td>
+                <td class="text-end">
+                  <div class="btn-group" role="group">
+                    <a href="rename_folder.php?folder_id=${folder.id}" class="btn btn-sm btn-secondary rounded-2">Renombrar</a>
+                    <button onclick="deleteFolder(${folder.id})" class="btn btn-sm btn-danger ms-2 rounded-2">Eliminar</button>
+                  </div>
+                </td>
+              </tr>
+            `).join('') +
+            `</tbody></table>`
+        : '<p class="text-muted">No hay carpetas.</p>';
 
-folderList.innerHTML = data.folders.length
-  ? `<table class="table table-hover align-middle shadow-sm border rounded">
-      <thead class="table-light">
-        <tr>
-          <th>📁 Carpeta</th>
-          <th class="text-end">Acciones</th>
-        </tr>
-      </thead>
-      <tbody>` +
-      data.folders.map(folder => {
-        return `
-          <tr class="folder-row" data-folder-id="${folder.id}">
-            <td>
-              <span class="folder-name fw-semibold text-primary" style="cursor:pointer;" onclick="loadFolder('${folder.path}')">
-                ${folder.name}
-              </span>
-            </td>
-            <td class="text-end">
-              <div class="btn-group" role="group">
-                <a href="rename_folder.php?folder_id=${folder.id}" class="btn btn-sm btn-secondary rounded-2">Renombrar</a>
-                <button onclick="deleteFolder(${folder.id})" class="btn btn-sm btn-danger ms-2 rounded-2">Eliminar</button>
-              </div>
-            </td>
-          </tr>`;
-      }).join('') +
-      `</tbody></table>`
-  : '<p class="text-muted">No hay carpetas.</p>';
-
-
-      // Archivos
+      // Archivos (sin cambios)
       const fileList = document.getElementById('file-list');
       fileList.innerHTML = data.files.length
-  ? `<table class="table table-striped table-hover align-middle">
-      <thead>
-        <tr>
-          <th><input type="checkbox" id="select-all-files" title="Seleccionar todos"></th>
-          <th>Nombre</th><th>Tamaño</th><th>Fecha</th><th>Acciones</th>
-        </tr>
-      </thead><tbody>` +
-      data.files.map(file => `
-        <tr class="file-row file-preview-row" data-path="${file.path}" data-type="${file.type}">
-          <td><input type="checkbox" class="file-checkbox" data-path="${file.path}"></td>
-          <td><span class="file-preview-link" data-path="${file.path}" data-type="${file.type}" style="color: inherit; text-decoration: none; cursor: pointer;">${file.filename}</span></td>
-          <td>${(file.filesize / 1024).toFixed(2)} KB</td>
-          <td>${file.uploaded_at}</td>
-          <td class="action-buttons">
+        ? `<table class="table table-striped table-hover align-middle">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="select-all-files" title="Seleccionar todos"></th>
+                <th>Nombre</th><th>Tamaño</th><th>Fecha</th><th>Acciones</th>
+              </tr>
+            </thead><tbody>` +
+            data.files.map(file => `
+              <tr class="file-row file-preview-row" data-path="${file.path}" data-type="${file.type}">
+                <td><input type="checkbox" class="file-checkbox" data-path="${file.path}"></td>
+                <td><span class="file-preview-link" data-path="${file.path}" data-type="${file.type}" style="color: inherit; text-decoration: none; cursor: pointer;">${file.filename}</span></td>
+                <td>${(file.filesize / 1024).toFixed(2)} KB</td>
+                <td>${file.uploaded_at}</td>
+                <td class="action-buttons">
                   <div class="dropdown">
                     <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                       Opciones
@@ -226,39 +228,28 @@ folderList.innerHTML = data.folders.length
                     </ul>
                   </div>
                 </td>
-        </tr>
-      `).join('') +
-      `</tbody></table>`
-  : '<p>No hay archivos.</p>';
-
+              </tr>
+            `).join('') +
+            `</tbody></table>`
+        : '<p>No hay archivos.</p>';
 
       // Actualizar input hidden Dropzone
       const targetFolderInput = document.querySelector('#my-dropzone input[name="targetFolder"]');
       if (targetFolderInput) targetFolderInput.value = currentFolder;
 
-      // Click en carpetas para navegar
-      document.querySelectorAll('.folder-item').forEach(el => {
-        el.addEventListener('click', () => {
-          const rawPath = (currentFolder ? currentFolder + '/' : '') + el.dataset.folder;
-          const newFolder = normalizePath(rawPath);
-          loadFolder(newFolder);
-        });
-      });
-
-
-      // Click en breadcrumb para navegar
+      // Listener para clicks en breadcrumbs (ya codificado correctamente)
       breadcrumbContainer.querySelectorAll('a').forEach(el => {
         el.addEventListener('click', e => {
           e.preventDefault();
-          const rawPath = el.dataset.folder;
-          const newFolder = normalizePath(rawPath);
-          loadFolder(newFolder);
+          const rawPath = decodeURIComponent(el.dataset.folder);
+          loadFolder(rawPath);
         });
       });
 
     })
     .catch(() => toastr.error('Error al cargar contenido'));
 }
+
 
 function deleteFolder(folderId) {
   if (!confirm('¿Seguro que quieres eliminar esta carpeta y todo su contenido?')) return;
