@@ -166,11 +166,38 @@ function loadFolder(folder) {
         }
       }).join('');
 
-      // Carpetas
-      const folderList = document.getElementById('folder-list');
-      folderList.innerHTML = data.folders.length
-        ? data.folders.map(f => `<li class="list-group-item folder-item" data-folder="${f}">📁 ${f}</li>`).join('')
-        : '<p>No hay carpetas.</p>';
+const folderList = document.getElementById('folder-list');
+
+folderList.innerHTML = data.folders.length
+  ? `<table class="table table-hover align-middle shadow-sm border rounded">
+      <thead class="table-light">
+        <tr>
+          <th>📁 Carpeta</th>
+          <th class="text-end">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>` +
+      data.folders.map(folder => {
+        const folderPath = (data.current_folder ? data.current_folder + '/' : '') + folder;
+        return `
+          <tr class="folder-row" data-folder="${folderPath}">
+            <td>
+              <span class="folder-name fw-semibold text-primary" style="cursor:pointer;" onclick="loadFolder('${folderPath}')">
+                ${folder}
+              </span>
+            </td>
+            <td class="text-end">
+              <div class="btn-group" role="group">
+                <a href="delete_folder.php?folder=${encodeURIComponent(folderPath)}" class="btn btn-sm btn-primary rounded-2">Eliminar</a>
+                <a href="rename_folder.php?folder=${encodeURIComponent(folderPath)}" class="btn btn-sm btn-secondary ms-2 rounded-2">Renombrar</a>
+              </div>
+            </td>
+          </tr>`;
+      }).join('') +
+      `</tbody></table>`
+  : '<p class="text-muted">No hay carpetas.</p>';
+
+
 
       // Archivos
       const fileList = document.getElementById('file-list');
